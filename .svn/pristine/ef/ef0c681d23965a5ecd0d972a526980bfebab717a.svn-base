@@ -1,0 +1,40 @@
+package com.mangocity.mbr.util;
+
+import java.net.InetAddress;
+import java.util.Collection;
+
+import org.apache.log4j.Logger;
+
+import com.mangocity.ce.deploy.ConfigManage;
+import com.mangocity.ce.util.CommonUtils;
+
+public class RightUtils {
+	private static Logger LOGGER = Logger.getLogger(RightUtils.class);
+
+	// 判断是否有权限调用集团
+	public static boolean hasRight2Call() {
+		String switchs = ConfigManage.instance().getSysConfig("right.call.crm.switch");//开关
+		if(CommonUtils.isNotBlank(switchs) && "ON".equalsIgnoreCase(switchs)){
+			LOGGER.info("right.call.crm.switch is ON.");
+			return true;
+		}
+		Collection<InetAddress> colInetAddress = HostAdapter.getAllHostAddress();
+		for (InetAddress address : colInetAddress) {
+			if (!address.isLoopbackAddress()) {
+				if (ConfigManage.instance().getSysConfig("proip").contains(address.getHostAddress())) {
+					LOGGER.info("生产ip: " + ConfigManage.instance().getSysConfig("proip") + " ,检测到的ip: "
+							+ address.getHostAddress() + " ,可以调用集团");
+					return true;
+				} else if (ConfigManage.instance().getSysConfig("testip").contains(address.getHostAddress())) {
+					LOGGER.info("测试ip: " + ConfigManage.instance().getSysConfig("testip") + " ,检测到的ip: "
+							+ address.getHostAddress() + " ,无权调用集团");
+					return false;
+				}
+			}
+		}
+		LOGGER.info("服务器ip不存在配置文件中...");
+		LOGGER.info("proip: " + ConfigManage.instance().getSysConfig("proip"));
+		LOGGER.info("testip: " + ConfigManage.instance().getSysConfig("testip"));
+		return false;
+	}
+}

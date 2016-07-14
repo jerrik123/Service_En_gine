@@ -1,0 +1,428 @@
+package com.mangocity.mbr.controller.point.exchange;
+
+import static com.mangocity.ce.util.CommonUtils.isBlank;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+
+import com.mangocity.ce.bean.EngineBean;
+import com.mangocity.ce.book.ConstantArgs;
+import com.mangocity.ce.book.ErrorConstant;
+import com.mangocity.ce.book.SysBook;
+import com.mangocity.ce.exception.ExceptionAbstract;
+import com.mangocity.ce.util.CommonUtils;
+import com.mangocity.ce.util.New;
+import com.mangocity.mbr.controller.mbr.MbrCommService;
+import com.mangocity.mbr.controller.mbrship.MbrShipService;
+import com.mangocity.mbr.controller.point.PointCommService;
+import com.mangocity.mbr.controller.point.PointService;
+import com.mangocity.mbr.factory.ApplicationContext;
+import com.mangocity.mbr.factory.BeanFactory;
+import com.mangocity.mbr.util.DateFormatUtil;
+import com.mangocity.mbr.util.ErrorUtils;
+import com.mangocity.mbr.util.RightUtils;
+import com.mangocity.mbr.util.ServerCall;
+
+/**
+ * 万里通积分互换服务 注:万里通积分转换为芒果网积分(换入)
+ * 
+ * @author mbr.yangjie
+ */
+public class PointExchangeInService {
+
+	private static final Logger log = Logger.getLogger(PointExchangeInService.class);
+	
+	/** 工厂实例 */
+	private BeanFactory beanFactory = new ApplicationContext();
+
+	public void setBeanFactory(BeanFactory beanFactory) {
+		this.beanFactory = beanFactory;
+	}
+
+	/**
+	 * 芒果网用户验证接口
+			{
+				"oldMbrshipCd":"660009915674",
+			}
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	@SuppressWarnings("unchecked")
+	public EngineBean partnersUserValidate(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointExchangeInService partnersUserValidate begin()...appId: " + pb.getAppId() + " ,params: "
+				+ pb.getHeadMap());
+		pb.setCommand("queryMbrShipByMbrshipCd");//根据oldMbrshipCd查询会籍信息
+		pb.setHead("mbrshipCd", pb.getHead("oldMbrshipCd"));
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		if(SysBook.SUCCESS.equals(resultEngineBean.getResultCode())){
+			Object obj = resultEngineBean.getBody("result");
+			Map<String,Object> resultMap = null;
+			if(obj instanceof Map){
+				resultMap = (Map<String,Object>)(resultEngineBean.getBody("result"));
+			}else if(obj instanceof List){
+				resultMap = ((List<Map<String,Object>>)(resultEngineBean.getBody("result"))).get(0);
+			}
+			
+			resultMap.clear();
+			resultMap.put("validateSucc", true);
+		}
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+
+	/**
+	 * TODO
+	 * 芒果网创建订单接口(积分互换)
+	 {
+    	"oldMbrshipCd":"660009915674",
+    	"bindUserName":"00001",
+    	"selCode":"00026216371",
+    	"points":"100",
+    	"acount":"1",
+    	"partnerAsignNum":"00000001"//设置默认值
+	 }
+	 
+	 {
+	 	"authorizeId":"",
+	 	"selCode":"",
+	 	"points":"100",
+	 	"type":"IN-OUT"
+	 }
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean partnersCreateOrder(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointExchangeInService partnersCreateOrder begin()...appId: " + pb.getAppId() + " ,params: "
+				+ pb.getHeadMap());
+		String type = String.valueOf(pb.getHead("type"));
+		if(CommonUtils.isBlankIncludeNull(type)){
+			type = "IN";
+		}else if(!"IN".equals(type) && !"OUT".equals(type)){
+			return ErrorUtils.error(pb, ErrorConstant.ERROR_PARAM_NULL_10000, "type只能是IN或者OUT");
+		}
+		
+		//step0:判断该授权id是否已经存在,并且有效
+		pb.setCommand("queryPointAuthorizeByAuthorizeId");
+		EngineBean pointAuthEb = ServerCall.call(pb);
+		log.info("pointAuthEb: " + pointAuthEb);
+		if(!SysBook.SUCCESS.equals(pointAuthEb.getResultCode())){
+			return  pointAuthEb;
+		}
+		//TODO 暂时写死,测试环境还没有字段
+		pb.setHead("bindUserName", "万里通测试名");
+		
+		//step2: 再根据mbrId查询会员信息是否有效
+		pb.setCommand("queryMbrByMbrId");
+		pb.setHead("mbrId", pointAuthEb.getBody("MBR_ID"));
+		MbrCommService mbrCommService = beanFactory.getBean("MbrCommService", MbrCommService.class);
+		EngineBean mb = mbrCommService.queryMbrByMbrId(pb);
+		if(!SysBook.SUCCESS.equals(mb.getResultCode())){
+			return mb;
+		}
+		
+		//step3: 检查平安万里通的充值流水是否存在
+		pb.setCommand("isExistWltOrder");
+		PointConvertBindService pointConvertBindService = beanFactory.getBean("PointConvertBindService", PointConvertBindService.class);
+		EngineBean pointConvertEb = pointConvertBindService.isExistWltOrder(pb);
+		if("IN".equals(type)){//换入
+			if(SysBook.SUCCESS.equals(pointConvertEb.getResultCode())){//如果已经存在了充值流水,则直接报错
+				return ErrorUtils.error(pb, ErrorConstant.PointExchange.ERROR_WANLIT_FILL_TRANS_IS_EXISTED, "该充值流水已经存在");
+			}
+		}else if("OUT".equals(type)){//退还
+			if(!SysBook.SUCCESS.equals(pointConvertEb.getResultCode())){//如果退还积分,必须使用之前兑换积分的流水号
+				return ErrorUtils.error(pb, ErrorConstant.PointExchange.ERROR_WLTORDER_IS_NOT_EXIST, "该充值流水不存在,无法退还积分");
+			}
+			
+			//查询该积分流水兑换的积分,且退还积分不能大于已兑换积分
+			pb.setCommand("queryPointConvertOrderByWltOrder");
+			pointConvertEb = ServerCall.call(pb);
+			if(!SysBook.SUCCESS.equals(pointConvertEb.getResultCode())){
+				return pointConvertEb;
+			}
+			Long mangoPoints = Long.parseLong(String.valueOf(pointConvertEb.getBody("MANGOPOINT")));
+			Long points = Long.parseLong(String.valueOf(pb.getHead("points")));
+			log.info("流水号: " + pb.getHead("selCode") + " ,已兑换积分: " + mangoPoints + " ,本次应退还积分: " + points);
+			if(points.intValue()>mangoPoints.intValue()){//如果退还积分大于兑换积分,则抛出错误码
+				pointConvertEb.setResultCode(ErrorConstant.Point.ERROR_POINT_CRM_POINTS_NOT_ENOUGH_20012);
+				pointConvertEb.setResultMsg("退还积分不能大于兑换积分");
+				pointConvertEb.setBodyMap(new HashMap<String, Object>());
+				return pointConvertEb;
+			}
+		}
+		
+		//step4:开始兑换(本地)
+		pb.setCommand("convertPointByRefund");
+		pb.setHead("mbrId", mb.getBody("mbrId"));
+		pb.setHead("mbrCd", mb.getBody("mbrCd"));
+		pb.setHead("compCode", pb.getHead("partnerAsignNum"));
+		pb.setHead("mangoPoint", pb.getHead("points"));
+		pb.setHead("coagentPoint", "01");
+		pb.setHead("handchargePoint", "01");
+		pb.setHead("createBy", "MEMBER-API");
+		pb.setHead("updateBy", "MEMBER-API");
+		pb.setHead("transType", ConstantArgs.POINT_TRANS_TYPE_CONVERT);
+		pb.setHead("transDateTime", new Date());
+		pb.setHead("points", pb.getHead("points"));
+		pb.setHead("transStatus", "P");
+		pb.setHead("transactionSubType", ConstantArgs.TRANSACTION_SUB_TYPE);
+		pb.setHead("transactionChannel",ConstantArgs.WEB_TRANSACTION_CHANNEL);
+		pb.setHead("cTSTransactionChannelSN", ConstantArgs.WEB_CTSTRANSACTION_CHANNELSN);
+		pb.setHead("cTSTransactionOrgCode", ConstantArgs.WEB_CTSTRANSACTION_ORGCODE_MARKET);
+		pb.setHead("partNumber", ConstantArgs.WEB_PART_NUMBER_IN);
+		pb.setHead("partnerAsignNum", "00000001");//合作方编号,这里指万里通
+		
+		//设置积分调整类型
+		if("IN".equals(type)){
+			pb.setHead("adjustReasonCode", ConstantArgs.LOY_TXN_TYPE_CD_ACCRUAL);//设置调整编码为积分增加
+			pb.setHead("inoutStatus", "0");
+		}else if("OUT".equals(type)){
+			pb.setHead("adjustReasonCode", ConstantArgs.LOY_TXN_TYPE_CD_REDEMPTION);//设置调整编码为积分减少
+			pb.setHead("inoutStatus", "1");
+		}
+		
+		log.info("------------------互换积分------------------begin()...");
+		pointConvertEb = this.convertPointByRefund(pb);//开始积分互换
+		log.info("convertPointByRefund resultEngineBean: " + pointConvertEb);
+		log.info("判断是否是集团用户,如果是集团用户,则加集团兑换积分...");
+		
+		//如果本地兑换成功,判断是否为集团用户
+		if(SysBook.SUCCESS.equals(pointConvertEb.getResultCode())){
+			pb.setCommand("isCrmMbr");
+			EngineBean mbrEb = ServerCall.call(pb);
+			if (SysBook.SUCCESS.equals(mbrEb.getResultCode())) {//如果是集团
+				//先获得集团原始积分
+				pb.setCommand("queryEnabledPoint");
+				PointService pointService = beanFactory.getBean("PointService", PointService.class);
+				EngineBean eb = pointService.queryEnabledPoint(pb);
+				if (!SysBook.SUCCESS.equals(eb.getResultCode())) {
+					return eb;
+				}
+				// 取出可用余额 用于确认是否退还积分成功
+				Long enablePoints = Long.parseLong(String.valueOf(eb.getBody("pointTotal")));
+				log.info("集团原始积分: " + enablePoints);
+				//设置交易时间
+				pb.setHead("transactionDate", DateFormatUtil.getDateFormat().format(new Date()));
+				pb.setHead("oldCrmEnablePoints", enablePoints);
+				setDefaultParamReqCrm(pb);//设置请求crm增加积分接口
+				if(!RightUtils.hasRight2Call()){//判断是否有权限调用集团
+					return ErrorUtils.error(pb, ErrorConstant.ERROR_UNSUPPORTED_OPERATION_10007, "测试环境没有权限访问集团");
+				}
+				
+				//根据type 判断是芒果网加积分还是扣积分
+				if("IN".equals(type)){
+					pb.setCommand("increaseCrmPoint");
+					mbrEb = ServerCall.call(pb);
+					log.info("increaseCrmPoint...result()...resultEngineBean: " + mbrEb);
+				}else if("OUT".equals(type)){
+					pb.setCommand("cutCrmPoint");
+					mbrEb = ServerCall.call(pb);
+					log.info("cutCrmPoint...result()...resultEngineBean: " + mbrEb);
+				}
+				if(!SysBook.SUCCESS.equals(mbrEb.getResultCode())){//如果集团操作失败,则直接返回错误
+					return mbrEb;
+				}
+				return pointConvertEb;
+			}else{//如果不是集团,则直接返回
+				return pointConvertEb;
+			}
+		}
+		log.info("resultEngineBean: " + pointConvertEb);
+		return pointConvertEb;
+	}
+
+	private void setDefaultParamReqCrm(EngineBean pb) {
+		pb.setHead("adjustType", ConstantArgs.POINT_INT_ADJUSTTYPE);
+		pb.setHead("transactionType", ConstantArgs.LOY_TXN_TYPE_CD_ACCRUAL);
+		pb.setHead("transType", ConstantArgs.POINT_TRANS_TYPE_CONVERT);//I: 积分操作类型_兑换
+		pb.setHead("transDateTime", new Date());
+		pb.setHead("transStatus","P");
+		pb.setHead("transactionSubType", ConstantArgs.TRANSACTION_SUB_TYPE);//交易子类型
+		pb.setHead("transactionChannel", ConstantArgs.WEB_TRANSACTION_CHANNEL);//交易渠道
+		pb.setHead("cTSTransactionChannelSN", ConstantArgs.WEB_CTSTRANSACTION_CHANNELSN);//交易渠道序列号
+		pb.setHead("partNumber", ConstantArgs.WEB_PART_NUMBER_OUT);
+		pb.setHead("cTSTransactionOrgCode", ConstantArgs.WEB_CTSTRANSACTION_ORGCODE_MARKET);
+		pb.setHead("ctsPointSubType", ConstantArgs.CTS_CONVERT_POINT_SUB_TYPE);//互换积分
+	}
+
+	/**
+	 * 查询芒果网积分接口
+	 * 
+	 * {
+			"oldMbrshipCd":""
+	   }
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean partnersIntegralSelUseablePointQuery(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointExchangeInService partnersIntegralSelUseablePointQuery begin()...appId: " + pb.getAppId()
+				+ " ,params: " + pb.getHeadMap());
+		//step1: 先根据会籍信息查询会籍是否有效
+		pb.setCommand("queryMbrShipByMbrshipCd");
+		MbrShipService mbrShipService = beanFactory.getBean("MbrShipService", MbrShipService.class);
+		EngineBean eb = mbrShipService.queryMbrShipByMbrshipCd(pb);
+		if(!SysBook.SUCCESS.equals(eb.getResultCode())){
+			return eb;
+		}
+		
+		//step2: 再根据mbrId查询会员信息是否有效
+		eb.setCommand("queryMbrByMbrId");
+		eb.setHead("mbrId", eb.getBody("MBR_ID"));
+		MbrCommService mbrCommService = beanFactory.getBean("MbrCommService", MbrCommService.class);
+		EngineBean mb = mbrCommService.queryMbrByMbrId(eb);
+		if(!SysBook.SUCCESS.equals(mb.getResultCode())){
+			return mb;
+		}
+		
+		//step3:根据attribute判断是集团积分还是芒果网本地积分
+		String attribute = String.valueOf(mb.getBody("attribute"));
+		log.info("mbrId: " + eb.getBody("MBR_ID") + " ,attribute: " + attribute);
+		attribute = CommonUtils.strToStr(attribute, "0");//如果attribute为空,则默认查本地积分
+		if(isBlank(attribute) || ConstantArgs.MBR_ATTRIBUTE_CUSTOMER.equals(attribute)){//普通会员积分查询
+			mb.setCommand("queryLocalEnabledPoint");
+			PointCommService pointCommService = beanFactory.getBean("PointCommService", PointCommService.class);
+			EngineBean pointEngine = pointCommService.queryLocalEnabledPoint(mb);
+			return pointEngine;
+		}else if( ConstantArgs.MBR_ATTRIBUTE_MBR.equals(attribute)){//查询集团会员积分
+			mb.setCommand("queryCrmEnabledPoint");
+			PointCommService pointCommService = beanFactory.getBean("PointCommService", PointCommService.class);
+			EngineBean pointEngine = pointCommService.queryCrmEnabledPoint(mb);
+			return pointEngine;
+		}
+		return null;
+	}
+
+	/**
+	 * 芒果网账户绑定接口
+	   {
+				"oldMbrshipCd":"",
+				"bindUserName":"万里通用户名"
+	   }
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean partnersIntegralBindUserQuery(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointExchangeInService partnersIntegralBindUserQuery begin()...appId: " + pb.getAppId()
+				+ " ,params: " + pb.getHeadMap());
+		//step1: 先根据会籍信息查询会籍是否有效
+		pb.setCommand("queryMbrShipByMbrshipCd");
+		MbrShipService mbrShipService = beanFactory.getBean("MbrShipService", MbrShipService.class);
+		EngineBean mbrshipEb = mbrShipService.queryMbrShipByMbrshipCd(pb);
+		if(!SysBook.SUCCESS.equals(mbrshipEb.getResultCode())){
+			return mbrshipEb;
+		}
+		
+		//step2: 再根据mbrId查询会员信息是否有效
+		pb.setCommand("queryMbrByMbrId");
+		pb.setHead("mbrId", mbrshipEb.getBody("MBR_ID"));
+		MbrCommService mbrCommService = beanFactory.getBean("MbrCommService", MbrCommService.class);
+		EngineBean mb = mbrCommService.queryMbrByMbrId(pb);
+		if(!SysBook.SUCCESS.equals(mb.getResultCode())){
+			return mb;
+		}
+		
+		//step3:检查万里通用户是否已经被绑定了
+		pb.setCommand("queryWltAccoutByBindUserName");
+		pb.setHead("bindUserName", String.valueOf(pb.getHead("bindUserName")).toUpperCase());//设置成大写
+		PointConvertBindService pointConvertBindService = beanFactory.getBean("PointConvertBindService", PointConvertBindService.class);
+		EngineBean pointBindEb = pointConvertBindService.queryWltAccoutByBindUserName(pb);
+		if(SysBook.SUCCESS.equals(pointBindEb.getResultCode())){//如果根据万里通用户查询出绑定信息,则说明已经绑定了
+			pointBindEb.setResultCode(ErrorConstant.PointExchange.ERROR_WLTACCOUT_IS_BINDED);
+			pointBindEb.setResultMsg("该万里通用户已经被绑定");
+			pointBindEb.setBodyMap(null);//将绑定信息置空
+			return pointBindEb;
+		}
+		
+		//step4:检查mbrId查询万里通绑定信息
+		pb.setCommand("queryWltAccoutByMbrId");
+		pointBindEb = pointConvertBindService.queryWltAccoutByMbrId(pb);
+		if(SysBook.SUCCESS.equals(pointBindEb.getResultCode())){
+			pointBindEb.setResultCode(ErrorConstant.Mbr.ERROR_MBR_IS_BINDED_WLT_30011);
+			pointBindEb.setResultMsg("该会员已经绑定过万里通用户");
+			pointBindEb.setBodyMap(null);//将绑定信息置空
+			return pointBindEb;
+		}
+		
+		//step5:开始绑定  bindUserName已经设置成了大写
+		pb.setCommand("pointConvertBindCreate");
+		pb.setHead("compCode", "00000001");
+		pb.setHead("mbrCd", mb.getBody("mbrCd"));
+		pb.setHead("loyaltyAccNo", pb.getHead("oldMbrshipCd"));//会籍编码
+		pointBindEb = pointConvertBindService.pointConvertBindCreate(pb);
+		log.info("resultEngineBean: " + pointBindEb);
+		if(!SysBook.SUCCESS.equals(pointBindEb.getResultCode())){
+			return ErrorUtils.error(pointBindEb, ErrorConstant.PointExchange.ERROR_WLTACCOUT_BIND_FAILURE, "万里通绑定芒果网用户失败");
+		}
+		return pointBindEb;
+	}
+
+	/**
+	 * 芒果网订单查询接口(根据万里通订单号查询)
+	 * {
+	 * 	"selCode":"wlt订单"
+	 * }
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	@SuppressWarnings("unchecked")
+	public EngineBean partnersOrderQuery(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointExchangeInService partnersOrderQuery begin()...appId: " + pb.getAppId() + " ,params: "
+				+ pb.getHeadMap());
+		//step1: 检查平安万里通的充值流水是否存在
+		pb.setCommand("isExistWltOrder");
+		PointConvertBindService pointConvertBindService = beanFactory.getBean("PointConvertBindService", PointConvertBindService.class);
+		EngineBean pointConvertEb = pointConvertBindService.isExistWltOrder(pb);
+		if(!SysBook.SUCCESS.equals(pointConvertEb.getResultCode())){//不存在,则报错
+			return pointConvertEb;
+		}else{//step2: 否则根据wlt订单查询订单流水
+			pb.setCommand("queryPointConvertOrderByWltOrder");
+			pointConvertEb = pointConvertBindService.queryPointConvertOrderByWltOrder(pb);
+			if(!SysBook.SUCCESS.equals(pointConvertEb.getResultCode())){//如果查询不到流水,则直接返回错误码
+				return pointConvertEb;
+			}else{
+				//step3: 查询订单流水成功,则根据返回数据中的mbrId获取会籍编码
+				Map<String,Object> pointConvertMap = (Map<String,Object>)pointConvertEb.getBodyMap().get("result");//
+				Map<String,Object> resultMap = New.map();
+				resultMap.put("mbrId", pointConvertMap.get("MBR_ID"));
+				resultMap.put("selCode", pointConvertMap.get("CELLULARQUERYREQUERTID"));
+				resultMap.put("createTime", pointConvertMap.get("CREATE_TIM"));
+				resultMap.put("mangoPoint", pointConvertMap.get("MANGOPOINT"));
+				resultMap.put("state", CommonUtils.isEmpty(pointConvertMap.get("POINT_TRANSACTION_ID"))?"0":"1");//如果积分流水id为Null,则设置state为0,否则为1
+				pb.setCommand("queryWltAccoutByMbrId");
+				pb.setHead("mbrId", pointConvertMap.get("MBR_ID"));
+				pointConvertEb = pointConvertBindService.queryWltAccoutByMbrId(pb);
+				if(!SysBook.SUCCESS.equals(pointConvertEb.getResultCode())){
+					return pointConvertEb;
+				}else{
+					resultMap.put("loyaltyAccNo", ((List<Map<String,Object>>)pointConvertEb.getBody("result")).get(0).get("LOYALTY_ACC_NO"));
+				}
+				//返回信息
+				pointConvertEb.setBody("result", resultMap);
+				return pointConvertEb;
+			}
+		}
+	}
+	
+	/**
+	 * 积分兑换服务
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean convertPointByRefund(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointExchangeInService convertPointByRefund begin()...appId: " + pb.getAppId() + " ,params: "
+				+ pb.getHeadMap()); 
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+}

@@ -1,0 +1,462 @@
+<check-list>
+	<check mangoId="_queryMbrShipListByMbrid">
+		<param-list>
+			<sub-param name="mbrId">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number" />
+					<rule key="min" value="0" />
+					<rule key="max" value="999999" />
+					<rule key="rangelength" value="[3,]" />
+					<rule key="maxlength" value="6" />
+					<rule key="minlength" value="4" />
+					<rule key="range" value="[85231,123456]" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="loginName">
+				<rule-list>
+					<rule key="required" />
+					<rule key="email|mobile" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="loginPwd">
+				<rule-list>
+					<rule key="required" />
+					<rule key="rangelength" value="[6,12]" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	<check mangoId="updateMobileNo">
+		<param-list>
+			<sub-param name="oldMobile">
+				<rule-list>
+					<rule key="required" />
+					<rule key="mobile" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="newMobile">
+				<rule-list>
+					<rule key="required" />
+					<rule key="mobile" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	<check mangoId="cutPoint">
+		<param-list>
+			<sub-param name="mbrId">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number" />
+					<rule key="min" value="1" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="points">
+				<rule-list>
+					<rule key="required" />
+					<rule key="min" value="1" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="type">
+				<rule-list>
+					<rule key="required" />
+					<rule key="range" value="[AB,CB]" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="salesTransNO">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="cTSTransactionChannelSN">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="cTSTransactionOrgCode">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="transactionChannel">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="ctsPointSubType">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	<check mangoId="increasePoint">
+		<param-list>
+			<sub-param name="points">
+				<rule-list>
+					<rule key="required" />
+					<rule key="min" value="1" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="salesTransNO">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	<check mangoId="queryMobileNoByMbrId">
+		<param-list>
+			<sub-param name="mbrId">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number" />
+					<rule key="min" value="1" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	<check mangoId="queryMobileNoByLoginName">
+		<param-list>
+			<sub-param name="loginName">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+
+	<check mangoId="addAwardPoints">
+		<param-list>
+			<sub-param name="mbrId">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number" />
+					<rule key="min" value="1" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="order_src">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="order_num">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="sales_trans_code">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="sales_trans_amount">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+
+	<check mangoId="adminLogin">
+		<param-list>
+			<sub-param name="loginName">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="loginPassword">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="deviceInfo">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="IP">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+
+	<check mangoId="sendSms">
+		<param-list>
+			<sub-param name="mobileNo">
+				<rule-list>
+					<rule key="required" />
+					<rule key="mobile" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="sendType">
+				<rule-list>
+					<rule key="required" />
+					<rule key="range" value="[verify_code,comm_code]" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+
+	<check mangoId="validateSms">
+		<param-list>
+			<sub-param name="mobileNo">
+				<rule-list>
+					<rule key="required" />
+					<rule key="mobile" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="signCode">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+
+	<check mangoId="queryUserDeviceByUserId">
+		<param-list>
+			<sub-param name="userId">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+
+	<check mangoId="updateMbrInfo">
+		<param-list>
+			<sub-param name="mbrId">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number" />
+					<rule key="min" value="1" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="birthday">
+				<rule-list>
+					<rule key="date" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="gender">
+				<rule-list>
+					<rule key="range" value="[11,12,99]" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+
+	</check>
+	<!-- 常用旅客 -->
+	<check mangoId="addPassengerInfo">
+		<param-list>
+			<sub-param level="passList" name="MBR_ID">
+				<rule-list>
+					<rule key="required"></rule>
+					<rule key="number" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList" name="MOBILE_NO">
+				<rule-list>
+					<rule key="required" />
+					<rule key="mobile" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList" name="CHI_NAME">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList" name="GENDER">
+				<rule-list>
+					<rule key="required" />
+					<rule key="range" value="[MALE,FEMALE,NONE]" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList" name="BIRTHDAY">
+				<rule-list>
+					<rule key="required" />
+					<rule key="date" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList.certificateList" name="CER_TYPE">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList.certificateList" name="CER_NO">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	
+	<check mangoId="queryPassengerInfo">
+		<param-list>
+			<sub-param name="MBR_ID">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="pageNo">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="pageSize">
+				<rule-list>
+					<rule key="required" />
+					<rule key="max"  value="1000"/>
+				</rule-list>
+			</sub-param>
+			
+		</param-list>
+	</check>
+	<check mangoId="deletePassengerInfo">
+		<param-list>
+			<sub-param name="MBR_ID">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="PASS_ID">
+				<rule-list>
+					<rule key="required" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	
+	<check mangoId="queryPassengerDetailById">
+		<param-list>
+			<sub-param name="MBR_ID">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number" />
+					<rule key="min" value="0" />
+				</rule-list>
+			</sub-param>
+			<sub-param name="PASS_ID">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number" />
+					<rule key="min" value="0" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	
+	<check mangoId="updatePassengerInfo">
+		<param-list>
+			<sub-param level="passList" name="MBR_ID">
+				<rule-list>
+					<rule key="required"></rule>
+					<rule key="number" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList" name="PASS_ID">
+				<rule-list>
+					<rule key="required" />
+					<rule key="number"></rule>
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList" name="MOBILE_NO">
+				<rule-list>
+					<rule key="mobile" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList" name="GENDER">
+				<rule-list>
+					<rule key="range" value="[MALE,FEMALE,NONE]" />
+				</rule-list>
+			</sub-param>
+			<sub-param level="passList" name="BIRTHDAY">
+				<rule-list>
+					<rule key="date" />
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	<!-- 常用旅客 -->
+	
+	
+	<!-- 万里通换芒果网积分 -->
+	<check mangoId="partnersUserValidate">
+		<param-list>
+			<sub-param  name="oldMbrshipCd">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	
+	<check mangoId="partnersIntegralSelUseablePointQuery">
+		<param-list>
+			<sub-param  name="oldMbrshipCd">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	
+	<check mangoId="partnersIntegralBindUserQuery">
+		<param-list>
+			<sub-param  name="oldMbrshipCd">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+			<sub-param  name="bindUserName">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	
+	<check mangoId="partnersOrderQuery">
+		<param-list>
+			<sub-param  name="selCode">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+	
+	<check mangoId="partnersCreateOrder">
+		<param-list>
+			<sub-param  name="oldMbrshipCd">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+			<sub-param  name="bindUserName">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+			<sub-param  name="selCode">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+			<sub-param  name="points">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+			<sub-param  name="partnerAsignNum">
+				<rule-list>
+					<rule key="required"></rule>
+				</rule-list>
+			</sub-param>
+		</param-list>
+	</check>
+</check-list>

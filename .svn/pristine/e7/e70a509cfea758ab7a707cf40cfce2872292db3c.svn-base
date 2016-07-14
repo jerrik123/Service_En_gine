@@ -1,0 +1,51 @@
+<mangocity>
+	<action mangoId="getUserInfo"
+		mangoClass="com.mangocity.mbr.controller.user.UserInfoService"></action>
+	<!-- 会员服务 -->
+	<action
+		mangoId="mbrRegister,validateUniqueMbrByLoginName,login,resetPassword,queryMbrIdByLoginName,queryMbrIdByLoginNameAndPassword,queryRegisterByLoginNameAndPassword,updateMobileNo"
+		mangoClass="com.mangocity.mbr.controller.mbr.MbrService"></action>
+	<action mangoId="queryMbrPersonByMbrId"  mangoClass="com.mangocity.mbr.controller.mbr.MbrPersonService"></action>
+	<!-- 积分服务 -->
+	<action
+		mangoId="cutPoint,queryEnabledPoint,queryPointTransaction,addAwardPoints"
+		mangoClass="com.mangocity.mbr.controller.point.PointService"></action>
+	<!-- 会籍服务 -->
+	<action mangoId="queryMbrShipListByMbrid"
+		mangoClass="com.mangocity.mbr.controller.mbrship.MbrShipService"></action>
+	<!-- 第三方服务 -->
+	<action mangoId="thirdpartyBinding"
+		mangoClass="com.mangocity.mbr.controller.thirdparty.ThirdpartyService"></action>
+	<action mangoId="isBindedMango"
+		mangoClass="com.mangocity.mbr.controller.thirdparty.ThirdpartyService"></action>
+
+	<!-- 现金账户 -->
+	<action
+		mangoId="queryCashAccountBalance,queryCashAccountInCome,queryCashAccountOutCome,queryCashAccountApplyRecord,queryAllCashAccountTrans"
+		mangoClass="com.mangocity.mbr.controller.cashaccount.CashAccountService"></action>
+
+	<!-- 代金券 -->
+	<action mangoId="queryNotUsedVoucher"
+		mangoClass="com.mangocity.mbr.controller.voucher.VoucherService"></action>
+	<action mangoId="queryUsedVoucher,queryVoucherBalanceByCd"
+		mangoClass="com.mangocity.mbr.controller.voucher.VoucherService"></action>
+
+	<!-- 通讯服务(短信、邮件) -->
+	<action
+		mangoId="sendSms,validateSms,updateSmsByMobileNoAndCode,addSmsRecord,querySmsCount,addSmsCount"
+		mangoClass="com.mangocity.mbr.controller.sms.SmsService"></action>
+
+	<!-- 通用会员服务 -->
+	<action mangoId="queryMobileNoByMbrId,queryMobileNoByLoginName,updateMbrInfo"
+		mangoClass="com.mangocity.mbr.controller.mbr.MbrCommService"></action>
+
+	<!-- mbrmg管理员服务 -->
+	<action mangoId="adminLogin,queryModuleByUserId"
+		mangoClass="com.mangocity.mbr.controller.mg.MbrManageService"></action>
+	<!-- 其他扩展服务(用户设备认证) -->
+	<action mangoId="addUserDevice,updateUserDevice,queryUserDeviceByUserId"
+		mangoClass="com.mangocity.mbr.controller.expand.UserDeviceService"></action>
+   
+   <!-- 旅客信息 -->
+   <action mangoId="addPassengerInfo,deletePassengerInfo,updatePassengerInfo,queryPassengerInfo"  mangoClass="com.mangocity.mbr.controller.passenger.PassengerService"></action>
+</mangocity>

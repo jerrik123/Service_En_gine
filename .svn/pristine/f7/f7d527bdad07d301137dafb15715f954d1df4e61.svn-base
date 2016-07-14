@@ -1,0 +1,27 @@
+# config path ,default classes path/config
+#remoteip=10.10.12.164
+proip=10.10.12.164
+testip=10.10.7.58;10.10.7.59
+
+remoteip=127.0.0.1
+
+#remoteport=2220
+remoteport=1120
+
+#短信网关地址
+sms.url=http://ro.mangocity.com/MSG/remoting/communicaterService
+
+#服务配置 ApplicationContext工厂实例化
+MbrService=com.mangocity.mbr.controller.mbr.MbrService
+ThirdpartyService=com.mangocity.mbr.controller.thirdparty.ThirdpartyService
+CashAccountService=com.mangocity.mbr.controller.cashaccount.CashAccountService
+VoucherService=com.mangocity.mbr.controller.voucher.VoucherService
+PointService=com.mangocity.mbr.controller.point.PointService
+SmsService=com.mangocity.mbr.controller.sms.SmsService
+MbrShipService=com.mangocity.mbr.controller.mbrship.MbrShipService
+
+#通用会员接口
+MbrCommService=com.mangocity.mbr.controller.mbr.MbrCommService
+
+#扩展接口(用户设备服务)
+UserDeviceService=com.mangocity.mbr.controller.expand.UserDeviceService

@@ -1,0 +1,25 @@
+# config path ,default classes path/config
+#remoteip=10.10.12.164
+proip=10.10.12.164
+testip=10.10.7.58;10.10.7.59;10.10.152.106
+
+remoteip=127.0.0.1
+
+#remoteport=2220
+remoteport=1120
+
+#短信网关地址
+sms.url=http://ro.mangocity.com/MSG/remoting/communicaterService
+
+#是否对接口请求进行校验(appId、adjustCode) on:校验 off:不校验
+request.validate.switch=on
+
+
+#集团通讯的MQEngine
+mq.engine.http.url.prefix=http://10.10.7.58:8011/mq
+#查询集团积分
+queryCrmEnablePoint.url.suffix=/point/queryCrmEnablePoint.action
+#扣减集团积分
+cutCrmPoint.url.suffix=/point/cutCrmPoint.action
+#退还集团积分
+increaseCrmPoint.url.suffix=/point/increaseCrmPoint.action

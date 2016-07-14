@@ -1,0 +1,68 @@
+/**
+ * 
+ */
+package com.mangocity.mbr.controller.mbr;
+
+import org.apache.log4j.Logger;
+
+import com.mangocity.ce.bean.EngineBean;
+import com.mangocity.ce.exception.ExceptionAbstract;
+import com.mangocity.ce.util.CommonUtils;
+import com.mangocity.mbr.controller.point.PointService;
+import com.mangocity.mbr.factory.ApplicationContext;
+import com.mangocity.mbr.factory.BeanFactory;
+import com.mangocity.mbr.util.ServerCall;
+
+/**   
+ * @Package com.mangocity.mbr.controller.mbr 
+ * @Description :  通用会员服务
+ * @author YangJie
+ * @email <a href='yangjie_software@163.com'>yangjie</a>
+ * @date 2015-11-3
+ */
+public class MbrCommService {
+	private static final Logger log = Logger.getLogger(MbrCommService.class);
+	
+	/**工厂实例*/
+	private BeanFactory beanFactory = new ApplicationContext();
+	
+	public void setBeanFactory(BeanFactory beanFactory) {
+		this.beanFactory = beanFactory;
+	}
+	
+	/**
+	 * 根据mbrId查询绑定手机号
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryMobileNoByMbrId(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrCommService queryMobileNoByMbrId begin()...params: " + pb.getHeadMap());
+		Long mbrId = CommonUtils.objectToLong(pb.getHead("mbrId"), -1L);
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean ;
+	}
+	
+	/**
+	 * 根据loginName查询绑定手机号
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryMobileNoByLoginName(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrCommService queryMobileNoByLoginName begin()...params: " + pb.getHeadMap());
+		MbrService mbrService = beanFactory.getBean("MbrService", MbrService.class);
+		pb.setCommand("queryRegisterByLoginNameAndPassword");
+		EngineBean eb = mbrService.queryRegisterByLoginNameAndPassword(pb);
+		Long mbrId = CommonUtils.objectToLong(eb.getBody("mbrId"), -1L);
+		if(!"00000".equals(eb.getResultCode()) || mbrId == -1L){
+			return eb;
+		}
+		pb.setHead("mbrId", mbrId);
+		pb.setCommand("queryMobileNoByMbrId");
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean ;
+	}
+}

@@ -1,0 +1,627 @@
+package com.mangocity.mbr.controller.mbr;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+import org.apache.log4j.Logger;
+
+import com.mangocity.ce.bean.EngineBean;
+import com.mangocity.ce.book.ErrorConstant;
+import com.mangocity.ce.book.SysBook;
+import com.mangocity.ce.exception.ExceptionAbstract;
+import com.mangocity.ce.util.AssertUtils;
+import com.mangocity.ce.util.CommonUtils;
+import com.mangocity.ce.util.MD5Algorithm;
+import com.mangocity.ce.util.New;
+import com.mangocity.ce.util.RedisUtils;
+import com.mangocity.mbr.book.ErrorCode;
+import com.mangocity.mbr.controller.sms.SmsService;
+import com.mangocity.mbr.factory.ApplicationContext;
+import com.mangocity.mbr.factory.BeanFactory;
+import com.mangocity.mbr.util.ErrorUtils;
+import com.mangocity.mbr.util.MapUtils;
+import com.mangocity.mbr.util.RegexUtils;
+import com.mangocity.mbr.util.SafeUtil;
+import com.mangocity.mbr.util.ServerCall;
+import com.mangocity.mbr.util.StringUtils;
+
+public class MbrService {
+	private static final Logger log = Logger.getLogger(MbrService.class);
+
+	/** 工厂实例 */
+	private BeanFactory beanFactory = new ApplicationContext();
+
+	public void setBeanFactory(BeanFactory beanFactory) {
+		this.beanFactory = beanFactory;
+	}
+
+	/**
+	 * 会员注册 {"adjustCode":"register","headMap":
+	 * {"loginName":"","loginPwd":"","setPasswordType"
+	 * :"auto manual自动和手动",registerWay,verifyCode}
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean mbrRegister(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService mbrRegister begin()...");
+		AssertUtils.assertNull(pb);
+		log.info("headMap" + pb.getHeadMap());
+		String loginName = (String) pb.getHead("loginName");
+		String loginPwd = (String) pb.getHead("loginPwd");
+		String verifyCode = (String) pb.getHead("verifyCode");
+		String setPasswordType = (String) pb.getHead("setPasswordType");// auto
+																		// manual自动和手动
+		String registerWay = (String) pb.getHead("registerWay");// 注册方式TODO:本次只考虑ABC的情况(校验注册并登陆)
+		String isAgreeSendPromotion = (String) pb.getHead("isAgreeSendPromotion");
+		String gender = (String) pb.getHead("gender");
+		String attribute = (String) pb.getHead("attribute");
+		String mbrLevel = (String) pb.getHead("mbrLevel");
+		EngineBean loginEngineBean = null;// 登陆返回的结果集
+		EngineBean resultEngineBean = null;
+		if (CommonUtils.isBlank(registerWay)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "registerWay为必填选项");
+		}
+		if (CommonUtils.isBlank(loginName)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "注册名为空");
+		}
+		if (CommonUtils.isNotBlank(isAgreeSendPromotion)) {
+			if (!isAgreeSendPromotion.equals("0") && !isAgreeSendPromotion.equals("1")) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "isAgreeSendPromotion必须是0或1");
+			}
+		}
+		if (CommonUtils.isNotBlank(gender)) {
+			if (!gender.equals("11") && !gender.equals("12") && !gender.equals("99")) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "gender必须是11,12或99");
+			}
+		}
+		if (CommonUtils.isNotBlank(attribute)) {
+			if (!attribute.equals("0") && !attribute.equals("1")) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "attribute必须是0或1");
+			}
+		}
+		if (CommonUtils.isNotBlank(mbrLevel)) {
+			if ("OneTwoThreeFour".indexOf(mbrLevel) == -1) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "mbrLevel必须是One、Two、Three或Four中间的值");
+			}
+		}
+		if (CommonUtils.isMobilePhone(loginName)) {
+			pb.setHead("mobileNo", loginName);
+		} else if (CommonUtils.isEmail(loginName)) {
+			pb.setHead("emailAddr", loginName);
+		} else {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "注册登陆名只能是手机号或者邮箱");
+		}
+
+		if ("ABC".equals(registerWay)) {// v1:只支持ABC方式,校验注册并登陆方式
+			if (!CommonUtils.isMobilePhone(loginName)) {// 因为要校验短信,登陆账户只能是手机
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "必须用手机号注册才能设置该种注册方式");
+			}
+			if (CommonUtils.isBlank(verifyCode)) {// 设置了ABC注册渠道,短信校验码就必填
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "必须设置短信校验码");
+			}
+			if (CommonUtils.isBlank(setPasswordType)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "必须设置注册设置密码类型(系统自动生成密码或者手动传入密码");
+			} else {
+				// 密码生成逻辑
+				if ("auto".equalsIgnoreCase(setPasswordType)) {// 自动
+					loginPwd = gen6RandomPwd();// 生成6位随机密码
+					pb.setHead("loginPwd", loginPwd);
+					log.info("谢谢注册芒果旅游网,您的初始密码是" + loginPwd);
+				} else if ("manual".equalsIgnoreCase(setPasswordType)) {// 手动
+					if (CommonUtils.isBlank(loginPwd)) {
+						return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "manual方式,必须设置密码");
+					} else if (!StringUtils.isNumeric(loginPwd)) {
+						return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "密码必须是数字");
+					} else if (loginPwd.length() < 6 || loginPwd.length() > 12) {
+						return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "密码长度必须是6-12位");
+					}
+					pb.setHead("loginPwd", loginPwd);
+				} else {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "setPasswordType错误,请查看接口文档");
+				}
+
+				// 校验短信
+				SmsService smsService = beanFactory.getBean("SmsService", SmsService.class);
+				pb.setCommand("validateSms");
+				pb.setHead("mobileNo", loginName);
+				pb.setHead("signCode", verifyCode);
+				if (!"00000".equals(smsService.validateSms(pb).getResultCode())) {// 短信校验不成功
+					return ErrorUtils.error(pb, ErrorCode.ERROR_SMS_VALIDATE_FAIL, "短信校验失败");
+				}
+
+				// 设置默认值
+				String mbrshipCategoryCd = (String) pb.getHead("mbrshipCategoryCd");
+				String createBy = (String) pb.getHead("createBy");
+				pb.setHead("isAgreeSendPromotion", CommonUtils.strToStr(isAgreeSendPromotion, "0"));
+				pb.setHead("gender", CommonUtils.strToStr(gender, "99"));
+				pb.setHead("attribute", CommonUtils.strToStr(attribute, "0"));
+				pb.setHead("mbrLevel", CommonUtils.strToStr(mbrLevel, "One"));
+				pb.setHead("createBy", CommonUtils.strToStr(createBy, "Wechat Register"));
+			}
+		} else {// TODO 预留其他注册方式
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "registerWay暂时不合法,请等待后续版本升级.");
+		}
+		pb.setCommand("mbrRegister");
+		pb.setHead("loginSubType", RegexUtils.getShortTypeName(loginName));
+		resultEngineBean = ServerCall.call(pb);
+		log.info("mbrRegister EngineBean: " + resultEngineBean);
+		if (!"00000".equals(resultEngineBean.getResultCode()) && null != resultEngineBean.getResultCode()) {
+			return resultEngineBean;
+		}
+		// 登陆
+		pb.setCommand("login");
+		loginEngineBean = this.login(pb);// 获得登陆时需要的lToken
+		log.info("login EngineBean: " + loginEngineBean);
+		MapUtils.unionEngineBean(resultEngineBean, loginEngineBean);// 合并Map
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+
+	/**
+	 * 验证登陆账号是否唯一
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean validateUniqueMbrByLoginName(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService validateUniqueMbrByLoginName begin()...");
+		AssertUtils.assertNull(pb);
+		log.info("headMap" + pb.getHeadMap());
+		String loginName = (String) pb.getHead("loginName");
+		if (CommonUtils.isBlank(loginName)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "登陆名不能为空");
+		}
+		pb.setHead("loginSubType", RegexUtils.getShortTypeName(loginName));
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+
+	/**
+	 * 根据登陆名查询会员id
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryMbrIdByLoginName(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService queryMbrIdByLoginName begin()...");
+		AssertUtils.assertNull(pb);
+		log.info("headMap" + pb.getHeadMap());
+		String loginName = (String) pb.getHead("loginName");
+		if (CommonUtils.isBlank(loginName)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "登陆名不能为空");
+		}
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+
+	/**
+	 * 根据登陆名和密码查询会员id
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryMbrIdByLoginNameAndPassword(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService queryMbrIdByLoginNameAndPassword begin()...");
+		AssertUtils.assertNull(pb);
+		log.info("headMap" + pb.getHeadMap());
+		String loginName = (String) pb.getHead("loginName");
+		String loginPwd = (String) pb.getHead("loginPwd");
+		if (CommonUtils.isBlank(loginName) || CommonUtils.isBlank(loginPwd)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "登陆名和密码不能为空");
+		}
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+
+	/**
+	 * 根据登陆名或者密码查询会员注册信息
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryRegisterByLoginNameAndPassword(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService queryRegisterByLoginNameAndPassword begin()...");
+		AssertUtils.assertNull(pb);
+		log.info("headMap" + pb.getHeadMap());
+		String loginName = (String) pb.getHead("loginName");
+		String loginPwd = (String) pb.getHead("loginPwd");
+		if (CommonUtils.isBlank(loginName)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "登陆名不能为空");
+		}
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+
+	/**
+	 * 会员登录
+	 * 
+	 * @param pb
+	 *            {"loginName":"jie.yang@mangocity.com","loginSubType":"",
+	 *            "loginPwd":""}
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean login(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService login begin()...");
+		AssertUtils.assertNull(pb);
+		log.info("headMap" + pb.getHeadMap());
+		String loginName = (String) pb.getHead("loginName");
+		String loginSubType = (String) pb.getHead("loginSubType");
+		String loginPwd = (String) pb.getHead("loginPwd");
+		String opid = (String) pb.getHead("opid");
+		String lToken = null;// 登陆Token
+		EngineBean resultEngineBean = null;
+		if (null == opid) {
+			pb.setCommand("login");
+			if (CommonUtils.isBlank(loginName)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "loginName不能为空");
+			} else if (CommonUtils.isBlank(loginSubType)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "loginSubType不能为空");
+			} else if (CommonUtils.isBlank(loginPwd)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "loginPwd不能为空");
+			}
+			if (loginPwd.length() != 32) {
+				pb.setHead("loginPwd", new MD5Algorithm().generateMD5Str(loginPwd));
+			}
+		} else {
+			pb.setCommand("queryReisterByOpenid");
+			resultEngineBean = ServerCall.call(pb);
+			pb.getHeadMap().remove("opid");
+			if (null == resultEngineBean.getBody("result")) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_MBR_NOT_EXIST, "登录失败！");
+			}
+			pb.setHead("loginPwd", ((Map) resultEngineBean.getBody("result")).get("LOGIN_PWD"));
+			pb.setHead("loginName", ((Map) resultEngineBean.getBody("result")).get("LOGIN_NAME"));
+			pb.setHead("loginSubType", ((Map) resultEngineBean.getBody("result")).get("LOGIN_SUBTYP"));
+		}
+		pb.setCommand("login");
+
+		resultEngineBean = ServerCall.call(pb);// 如果账号或密码错误,则de抛出异常
+		if (!SysBook.SUCCESS.equals(resultEngineBean.getResultCode())) {// 直接抛出账号或密码错误
+			return resultEngineBean;
+		}
+		List<Map<String, Object>> resultList = (List<Map<String, Object>>) (resultEngineBean.getBody("result"));
+		for (Map<String, Object> tMap : resultList) {
+			if ("1".equals(String.valueOf(tMap.get("stus")))) {
+				lToken = SafeUtil.MD5(String.valueOf(tMap.get("mbrId")));
+				RedisUtils.set(lToken, String.valueOf(String.valueOf(tMap.get("mbrId"))));
+				log.info("写token: " + lToken + " ,mbrId: " + String.valueOf(String.valueOf(tMap.get("mbrId"))));
+				tMap.put("lToken", lToken);
+				Map<String, Object> resultMap = New.map();
+				resultMap.put("result", tMap);
+				resultEngineBean.getBodyMap().clear();
+				resultEngineBean.setBodyMap(resultMap);
+				return resultEngineBean;
+			}
+		}
+		return ErrorUtils.error(pb, ErrorConstant.Mbr.ERROR_MBR_NOT_ACTIVATED_30009, "会员状态不可用");
+	}
+
+	/**
+	 * 短信校验并登录
+	 * 
+	 * @description (如果手机号存在,则直接根据手机号绑定的会员登录 如果不存在 则根据手机号注册并登录) mobileNo
+	 *              verifyCode:
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean smsLogin(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService smsLogin begin()...");
+		AssertUtils.assertNull(pb);
+		log.info("headMap" + pb.getHeadMap());
+		EngineBean resultEngineBean = null;
+		String loginPwd = null;
+		String verifyCode = (String) pb.getHead("verifyCode");
+		pb.setCommand("queryRegisterByLoginNameAndPassword");
+		pb.setHead("loginName", pb.getHead("mobileNo"));
+		resultEngineBean = queryRegisterByLoginNameAndPassword(pb);
+
+		// #step1:如果通过loginName能查到对应的register记录 则直接登录 否则注册
+		if (SysBook.SUCCESS.equals(resultEngineBean.getResultCode())) {// 如果能查到对应账户
+																		// 则直接登录
+			pb.setCommand("login");
+			pb.setHeadMap(((Map<String, Object>) (resultEngineBean.getBody("result"))));
+			pb.setHead("loginSubType", "M");
+			resultEngineBean = login(pb);
+			log.info("smsLogin 登录: " + pb.getHeadMap());
+			return resultEngineBean;
+		} else if ("30001".equals(resultEngineBean.getResultCode())) {// 30001
+																		// 是会员账号不存在
+																		// 则注册
+			pb.setHead("registerWay", "ABC");
+			pb.setHead("verifyCode", verifyCode);
+			pb.setHead("setPasswordType", "auto");
+			resultEngineBean = mbrRegister(pb);
+			log.info("smsLogin 注册用户: " + pb.getHeadMap());
+			return resultEngineBean;
+		} else {// 注册
+			return resultEngineBean;
+		}
+	}
+
+	/**
+	 * 重置密码/忘记密码
+	 * 
+	 * @param pb
+	 *            {"loginName":"13554774675","oldPassword":"","resetLoginPwd":""
+	 *            ,"type":"重置密码的方式(A.新旧密码重置B.手机重置C.邮件重置D.随机密码下发短信)","signCode":
+	 *            "短信校验码"}
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean resetPassword(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService resetPassword begin()...");
+		AssertUtils.assertNull(pb);
+		log.info("headMap" + pb.getHeadMap());
+		String type = (String) pb.getHead("type");// 重置密码类型
+		String loginName = (String) pb.getHead("loginName");
+		String resetLoginPwd = (String) pb.getHead("resetLoginPwd");
+		String oldPassword = (String) pb.getHead("oldPassword");
+		String signCode = (String) pb.getHead("signCode");// 短信验证码
+
+		// 定义返回实体对象
+		EngineBean resultEngineBean = null;
+		if (CommonUtils.isBlank(loginName)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "登陆名不能为空");
+		}
+		if (CommonUtils.isBlank(type)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "type不能为空");
+		}
+		if (type.equals("A")) {// 新旧密码重置
+			if (CommonUtils.isBlank(oldPassword)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "旧密码不能为空");
+			} else if (CommonUtils.isBlank(resetLoginPwd)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "重置密码不能为空");
+			} else {// 处理修改密码的逻辑
+				if (!StringUtils.isValidPwd(oldPassword)) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "oldPassword必须6-12位");
+				}
+				if (!StringUtils.isNumeric(oldPassword)) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "oldPassword必须是数字");
+				}
+				if (!StringUtils.isValidPwd(resetLoginPwd)) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "resetLoginPwd必须6-12位");
+				}
+				if (!StringUtils.isNumeric(resetLoginPwd)) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "resetLoginPwd必须是数字");
+				}
+				pb.setCommand("queryRegisterByLoginNameAndPassword");
+				pb.setHead("loginPwd", new MD5Algorithm().generateMD5Str(oldPassword));
+				EngineBean eb = this.queryRegisterByLoginNameAndPassword(pb);
+				if (!"00000".equals(eb.getResultCode())) {
+					return eb;
+				}
+				Long mbrId = CommonUtils.objectToLong(eb.getBody("mbrId"), -1L);
+				log.info("loginName: " + loginName + ",mbrId: " + mbrId);
+				if (CommonUtils.isEmpty(mbrId) || mbrId.intValue() <= 0) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_MBR_NOT_EXIST, "该会员不存在");
+				}
+				String oldMD5Password = new MD5Algorithm().generateMD5Str(oldPassword);
+				pb.setHead("mbrId", mbrId);
+				pb.setHead("oldPassword", null);
+				pb.setHead("loginName", null);
+				pb.setHead("resetLoginPwd", new MD5Algorithm().generateMD5Str(resetLoginPwd));
+				pb.setHead("updateBy", "OLDPASSWORD RESET PASSWORD");
+				pb.setCommand("resetPassword");// 开始重置密码 mbrId相同的记录密码都相同
+				resultEngineBean = ServerCall.call(pb);
+				log.info("新旧密码重置 resultEngineBean: " + resultEngineBean);
+				return resultEngineBean;
+			}
+		} else if (type.equals("B") || type.equals("D")) {// B.手机+短信校验码验证后,修改成新密码
+															// D.校验通过后,下发系统生成的重置密码给用户手机
+			if (!CommonUtils.isMobilePhone(loginName)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "您的登录名不是合法的手机号");
+			}
+			if (CommonUtils.isBlank(signCode)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "signCode必填");
+			}
+			if (type.equals("B")) {
+				if (CommonUtils.isBlank(resetLoginPwd)) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "resetLoginPwd不能为空");
+				}
+			}
+			if (type.equals("D")) {
+				resetLoginPwd = this.gen6RandomPwd();
+			}
+			// 处理修改密码的逻辑
+			pb.setHead("mobileNo", pb.getHead("loginName"));
+			pb.setHead("oldPassword", null);// 不需要根据旧密码修改
+			log.info("开始验证短信是否合法...");
+			SmsService smsService = beanFactory.getBean("SmsService", SmsService.class);
+			pb.setCommand("validateSms");
+			if (!"00000".equals(smsService.validateSms(pb).getResultCode())) {// 短信校验成功{
+				return ErrorUtils.error(pb, ErrorCode.ERROR_SMS_VALIDATE_FAIL, "短信校验失败");
+			} else {
+				pb.setCommand("queryRegisterByLoginNameAndPassword");// TODO
+				EngineBean eb = this.queryRegisterByLoginNameAndPassword(pb);
+				if (!"00000".equals(eb.getResultCode())) {
+					return eb;
+				}
+				Long mbrId = CommonUtils.objectToLong(eb.getBody("mbrId"), -1L);
+				log.info("loginName: " + loginName + ",mbrId: " + mbrId);
+				if (CommonUtils.isEmpty(mbrId) || mbrId.intValue() <= 0) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_MBR_NOT_EXIST, "找不到该会员信息");
+				}
+				pb.setHead("mbrId", mbrId);
+				pb.setHead("oldPassword", null);
+				pb.setHead("loginName", null);
+				log.info("loginName: " + loginName + ",下发短信重置密码是: " + resetLoginPwd);
+				pb.setHead("resetLoginPwd", new MD5Algorithm().generateMD5Str(resetLoginPwd));
+				pb.setHead("updateBy", "OLDPASSWORD RESET PASSWORD");
+				pb.setCommand("resetPassword");// 开始重置密码 mbrId相同的记录密码都相同
+				resultEngineBean = ServerCall.call(pb);
+				if (type.equals("D") && "00000".equals(resultEngineBean.getResultCode())) {// 成功后发送短信
+					pb.setCommand("sendSms");
+					pb.setHead("sendType", "comm_code");// 发送类型为普通短信
+					pb.setHead("message", "尊敬的用户,您重置后的密码是" + resetLoginPwd);
+					smsService.sendSms(pb);
+				}
+				return resultEngineBean;
+			}
+		} else if (type.equals("C")) {// 邮箱重置密码
+			log.info("本次版本暂不支持邮箱重置密码,请关注后续版本升级.");
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "本次版本暂不支持邮箱重置密码,请关注后续版本升级.");
+		} else {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "type非法,具体请参照接口文档");
+		}
+	}
+
+	/**
+	 * 修改手机号//TODO
+	 * 
+	 * @param pb
+	 * @return {"oldMobile":"","newMobile":"","signCode":"","aToken":
+	 *         "缓存中hset了两个值 userId和type type:A是管理员修改 B是普通用户修改"
+	 *         ,"userId":"","type":""}
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean updateMobileNo(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService updateMobileNo begin()...headMap: " + pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+		String oldMobile = (String) pb.getHead("oldMobile");
+		String newMobile = (String) pb.getHead("newMobile");
+		String type = (String) pb.getHead("type");
+		String signCode = (String) pb.getHead("signCode");
+		String aToken = (String) pb.getHead("aToken");
+		String userId = (String) pb.getHead("userId");
+		EngineBean validateBean = null;// 校验手机
+		EngineBean resultEngineBean = null;
+		if (type.equals("A")) {// 管理员修改密码
+			if (CommonUtils.isBlank(aToken)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "aToken不能为空");
+			}
+			if (CommonUtils.isBlank(userId)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "userId不能为空");
+			}
+			// 1.判断aToken是否存在 false:返回lToken错误
+			if (!RedisUtils.exists(aToken)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "缓存中不存在该aToken");
+			}
+			// 2.根据aToken获取缓存中的value 判断和userId是否相等,如果不等,则返回错误
+			if (!userId.equals(RedisUtils.get(aToken))) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "aToken和userId不匹配");
+			}
+			// 验证通过后 修改手机
+			resultEngineBean = ServerCall.call(pb);
+		} else if (type.equals("B")) {// 服务方修改(本次微信)
+			if (CommonUtils.isBlank(signCode)) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "signCode不能为空");
+			}
+			pb.setHead("mobileNo", oldMobile);
+			pb.setCommand("validateSms");
+			SmsService smsService = beanFactory.getBean("SmsService", SmsService.class);
+			validateBean = smsService.validateSms(pb);
+			if (CommonUtils.isNotEmpty(validateBean) && "00000".equals(validateBean.getResultCode())) {// 如果校验手机成功,则执行修改手机号
+				pb.setCommand("updateMobileNo");
+				resultEngineBean = ServerCall.call(pb);
+			} else {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_SMS_VALIDATE_FAIL, "手机校验失败");
+			}
+		} else {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "type只能是A或B");
+		}
+		log.info("updateMobileNo resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+
+	/**
+	 * 获取会员信息
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean getPersonInfo(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService getPersonInfo begin()...");
+		AssertUtils.assertNull(pb, "EngineBean can't be null.");
+		Long mbrId = CommonUtils.objectToLong((String) pb.getHead("mbrId"), -1L);
+		String mbrCd = (String) pb.getHead("mbrCd");
+		if (-1L == mbrId && CommonUtils.isBlank(mbrCd)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "mbrId和mbrCd不能同时为空");
+		}
+		if (-1L != mbrId && CommonUtils.isNotBlank(mbrCd)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "mbrId和mbrCd不能同时都填");
+		}
+		EngineBean personBean = ServerCall.call(pb);
+		if (!SysBook.SUCCESS.equals(personBean.getResultCode())) {
+			return ErrorUtils.error(personBean, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "账号不存在");
+		}
+		String stus = personBean.getBody("stus").toString();
+		if (!stus.equals("Active") && !stus.equals("1")) {
+			return ErrorUtils.error(personBean, ErrorCode.ERROR_MBR_NUUSED, "该会员状态为不可用");
+		}
+		return personBean;
+	}
+
+	/**
+	 * 获取会员信息根据会籍ID
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean getPersonInfoByMbrShipCd(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService getPersonInfoByMbrShipCd begin()...");
+		AssertUtils.assertNull(pb, "EngineBean can't be null.");
+
+		pb.setCommand("ddd");
+		// step1 根据会籍ID查询会员ID
+		Long ShipId = CommonUtils.objectToLong((String) pb.getHead("mbrShipId"), -1L);
+		EngineBean resultMbrIDBean = ServerCall.call(pb);
+
+		
+		// step 2 根据会员ID 查询会员信息
+		long mbrId = CommonUtils.objectToLong(resultMbrIDBean.getHead("MbrId").toString(),-1L);
+
+		String mbrCd = (String) pb.getHead("mbrCd");
+		if (-1L == mbrId && CommonUtils.isBlank(mbrCd)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "mbrId和mbrCd不能同时为空");
+		}
+		if (-1L != mbrId && CommonUtils.isNotBlank(mbrCd)) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "mbrId和mbrCd不能同时都填");
+		}
+		EngineBean personBean = ServerCall.call(pb);
+		if (!SysBook.SUCCESS.equals(personBean.getResultCode())) {
+			return ErrorUtils.error(personBean, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "账号不存在");
+		}
+		String stus = personBean.getBody("stus").toString();
+		if (!stus.equals("Active") && !stus.equals("1")) {
+			return ErrorUtils.error(personBean, ErrorCode.ERROR_MBR_NUUSED, "该会员状态为不可用");
+		}
+		return personBean;
+	}
+
+	/**
+	 * 生成六位随机密码
+	 */
+	private String gen6RandomPwd() {
+		String password = "";
+		for (int mm = 0; mm < 100; mm++) {
+			Random rdm = new Random();
+			String temp = Integer.toString(Math.abs(rdm.nextInt()));
+			if (temp.trim().length() > 6) {
+				password = temp.substring(0, 6);
+			} else {
+				password = temp;
+			}
+			if (!"111111".equals(password) && !"222222".equals(password) && !"333333".equals(password)
+					&& !"444444".equals(password) && !"555555".equals(password) && !"666666".equals(password)
+					&& !"777777".equals(password) && !"888888".equals(password) && !"999999".equals(password)
+					&& !"000000".equals(password) && !"123456".equals(password) && !"654321".equals(password)) {
+				break;
+			}
+		}
+		return password;
+	}
+}

@@ -1,0 +1,330 @@
+package com.mangocity.mbr.controller.point;
+
+import java.text.ParseException;
+import java.util.Date;
+
+import org.apache.log4j.Logger;
+
+import com.mangocity.ce.bean.EngineBean;
+import com.mangocity.ce.book.ErrorConstant;
+import com.mangocity.ce.book.SysBook;
+import com.mangocity.ce.exception.ExceptionAbstract;
+import com.mangocity.ce.util.CommonUtils;
+import com.mangocity.mbr.book.ErrorCode;
+import com.mangocity.mbr.controller.mbr.MbrCommService;
+import com.mangocity.mbr.controller.sms.SmsService;
+import com.mangocity.mbr.factory.ApplicationContext;
+import com.mangocity.mbr.factory.BeanFactory;
+import com.mangocity.mbr.util.DateFormatUtil;
+import com.mangocity.mbr.util.ErrorUtils;
+import com.mangocity.mbr.util.RightUtils;
+import com.mangocity.mbr.util.ServerCall;
+
+/**
+ * @ClassName: PointService
+ * @Description: 积分服务
+ * @author Syungen
+ * @date 2015年8月25日 下午6:19:22
+ */
+public class PointService {
+	private static final Logger log = Logger.getLogger(PointService.class);
+
+	/** 工厂实例 */
+	private BeanFactory beanFactory = new ApplicationContext();
+
+	public void setBeanFactory(BeanFactory beanFactory) {
+		this.beanFactory = beanFactory;
+	}
+
+	/**
+	 * 扣减积分 { "mbrId": 16898357, "points": 1, "salesTransNO": "201503171234",
+	 * "type":"AB",//短信校验并扣减,CB密码校验并扣减 "signCode":"45321",
+	 * "cTSTransactionChannelSN":"661101000000",
+	 * "cTSTransactionOrgCode":"661030000000", "transactionChannel":"11",
+	 * "ctsPointSubType":"消费积分", "currencyCode":"CNY", "cTSRMBAmount":"",
+	 * "amount":"", "cTSProdCode":"8866071000", "cTSProdDesc":"其他" }
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean cutPoint(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointService cutPoint begin()...appId: " + pb.getAppId() + " ,params: " + pb.getHeadMap());
+		String type = (String) pb.getHead("type");
+		String signCode = (String) pb.getHead("signCode");
+		Long mbrId = CommonUtils.objectToLong(pb.getHead("mbrId"), -1L);
+		setDefaultValue(pb);
+		EngineBean eb = null;
+		if ("AB".equals(pb.getHead("type"))) {
+			log.info("校验短信 begin()...");
+			if (null == pb.getHead("signCode") || "".equals(pb.getHead("signCode"))) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "当type为AB,signCode不能为空.");
+			}
+			// 校验短信需要通过mbrId获得绑定的手机号
+			pb.setCommand("queryMobileNoByMbrId");
+			MbrCommService mbrCommService = beanFactory.getBean("MbrCommService", MbrCommService.class);
+			eb = mbrCommService.queryMobileNoByMbrId(pb);
+			if (!"00000".equals(eb.getResultCode())) {// 如果用户没有绑定手机号或者获取绑定手机号失败,则直接返回错误给客户端
+				return eb;
+			}
+			// 获取手机号成功
+			// 校验短信(业务类型+手机+验证码+有效时间+订单号)
+			pb.setCommand("validateSms");
+			pb.setHead("mobileNo", eb.getBody("mobileNo"));
+			log.info("mbrId: " + mbrId + " ,绑定的手机号是: " + eb.getBody("mobileNo"));
+			pb.setHead("businessType", "B");// 积分扣减 类型
+			pb.setHead("businessNo", pb.getHead("salesTransNO"));// 订单号
+			pb.setHead("updateBy", pb.getAppId());
+			
+			SmsService smsService = beanFactory.getBean("SmsService", SmsService.class);
+			eb = smsService.validateSms(pb);
+				if(!"00000".equals(eb.getResultCode())){
+					log.info("校验短信失败 stop()...");
+					return eb;
+				}
+			log.info("校验短信成功 扣减积分begin()...");
+		}else if("CB".equals(pb.getHead("type"))){
+				//密码校验
+				log.info("校验密码 begin()...");
+				if(null ==pb.getHead("pwd")|| "".equals(pb.getHead("pwd"))){
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "当type为CB,pwd不能为空.");
+				}
+				log.info("预留状态...");
+				log.info("校验密码成功 扣减积分begin()...");
+			}
+			// 短信校验通过
+
+			// 扣减之前 先查询出可用积分余额
+			eb = this.queryEnabledPoint(pb);
+			if (!SysBook.SUCCESS.equals(eb.getResultCode())) {
+				return eb;
+			}
+			
+			// 取出可用余额 如果可用余额小于本次扣减,则抛出错误码
+			Long enablePoints = Long.parseLong(String.valueOf(eb.getBody("pointTotal")));
+			Long cutPoints = Long.parseLong(String.valueOf(pb.getHead("points")));
+			log.info("crmEnablePoints: " + enablePoints + " ,cutPoints: " + cutPoints);
+			if (cutPoints.intValue() > enablePoints.intValue()) {
+				eb.setResultCode(ErrorConstant.Point.ERROR_POINT_CRM_POINTS_NOT_ENOUGH_20012);
+				eb.setResultMsg("集团积分不足本次扣减");
+				return eb;
+			}
+			
+			// 先判断是否为集团会员 分别进行扣减本地积分和扣减集团积分
+			pb.setCommand("isCrmMbr");
+			eb = ServerCall.call(pb);
+			if (SysBook.SUCCESS.equals(eb.getResultCode())) {
+				//设置交易时间
+				//设置集团可用积分,用于确认是否扣减积分成功
+				pb.setHead("transactionDate", DateFormatUtil.getDateFormat().format(new Date()));
+				pb.setHead("oldCrmEnablePoints", enablePoints);
+				if (String.valueOf(eb.getBody("isCrmMbr")).equals("true")) {// 集团用户
+					log.info("cutCrmPoint...begin()...");
+					if(!RightUtils.hasRight2Call()){//判断是否有权限调用集团
+						return ErrorUtils.error(pb, ErrorConstant.ERROR_UNSUPPORTED_OPERATION_10007, "测试环境没有权限访问集团");
+					}
+					pb.setCommand("cutCrmPoint");
+					eb = ServerCall.call(pb);
+					log.info("cutCrmPoint...result()...");
+					return eb;
+				} else {// 本地用户
+					log.info("cutLocalPoint...begin()...");
+					pb.setCommand("cutLocalPoint");
+					eb = ServerCall.call(pb);
+					log.info("cutLocalPoint...result()...");
+					return eb;
+				}
+			} else {
+				return eb;
+			}
+	}
+
+	/**
+	 * 积分退还
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean increasePoint(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointService increasePoint begin()...appId: " + pb.getAppId() + " ,params: " + pb.getHeadMap());
+		setDefaultValue(pb);
+		// 退还积分之前 先查询出可用积分余额
+		EngineBean eb = this.queryEnabledPoint(pb);
+		if (!SysBook.SUCCESS.equals(eb.getResultCode())) {
+			return eb;
+		}
+		
+		// 取出可用余额 用于确认是否退还积分成功
+		Long enablePoints = Long.parseLong(String.valueOf(eb.getBody("pointTotal")));
+		// 先判断是否为集团会员 分别进行扣减本地积分和扣减集团积分
+		pb.setCommand("isCrmMbr");
+		eb = ServerCall.call(pb);
+		if (SysBook.SUCCESS.equals(eb.getResultCode())) {
+			//设置交易时间
+			pb.setHead("transactionDate", DateFormatUtil.getDateFormat().format(new Date()));
+			pb.setHead("oldCrmEnablePoints", enablePoints);
+			if (String.valueOf(eb.getBody("isCrmMbr")).equals("true")) {// 集团用户
+				if(!RightUtils.hasRight2Call()){//判断是否有权限调用集团
+					return ErrorUtils.error(pb, ErrorConstant.ERROR_UNSUPPORTED_OPERATION_10007, "测试环境没有权限访问集团");
+				}
+				log.info("increaseCrmPoint...begin()...");
+				pb.setCommand("increaseCrmPoint");
+				eb = ServerCall.call(pb);
+				log.info("increaseCrmPoint...result()...");
+				return eb;
+			} else {// 本地用户
+				log.info("increaseLocalPoint...begin()...");
+				pb.setCommand("increaseLocalPoint");
+				eb = ServerCall.call(pb);
+				log.info("increaseLocalPoint...result()...");
+				return eb;
+			}
+		} else {
+			return eb;
+		}
+	}
+
+	private void setDefaultValue(EngineBean pb) {
+		String cTSTransactionChannelSN = String.valueOf(pb.getHead("cTSTransactionChannelSN"));
+		String cTSTransactionOrgCode = String.valueOf(pb.getHead("cTSTransactionOrgCode"));
+		String transactionChannel = String.valueOf(pb.getHead("transactionChannel"));
+		String ctsPointSubType = String.valueOf(pb.getHead("ctsPointSubType"));
+		String currencyCode = String.valueOf(pb.getHead("currencyCode"));
+		String cTSProdCode = String.valueOf(pb.getHead("cTSProdCode"));
+		String cTSProdDesc = String.valueOf(pb.getHead("cTSProdDesc"));
+		if(CommonUtils.isBlank(cTSTransactionChannelSN)){
+			pb.setHead("cTSTransactionChannelSN", "661101000000");
+		}
+		if(CommonUtils.isBlank(cTSTransactionOrgCode)){
+			pb.setHead("cTSTransactionOrgCode", "661030000000");
+		}
+		if(CommonUtils.isBlank(transactionChannel)){
+			pb.setHead("transactionChannel", "11");
+		}
+		if(CommonUtils.isBlank(ctsPointSubType)){
+			pb.setHead("ctsPointSubType", "消费积分");
+		}
+		if(CommonUtils.isBlank(currencyCode)){
+			pb.setHead("currencyCode", "CNY");
+		}
+		if(CommonUtils.isBlank(cTSProdCode)){
+			pb.setHead("cTSProdCode", "8866071000");
+		}
+		if(CommonUtils.isBlank(cTSProdDesc)){
+			pb.setHead("cTSProdDesc", "其他");
+		}
+	}
+
+	/**
+	 * 查询可用积分(包括集团和本地积分) { "adjustCode": "queryEnabledPoint", "appId": "******",
+	 * "headMap": { "mbrId": "59108443" } }
+	 * 
+	 * @desc: 集团积分和本地积分已经可以使用
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryEnabledPoint(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointService queryEnabledPoint begin()...param: " + pb.getHeadMap());
+		String mbrshipCd = (String) pb.getHead("mbrshipCd");
+		Long mbrId = CommonUtils.objectToLong(String.valueOf(pb.getHead("mbrId")), -1L);
+		if (CommonUtils.isBlank(mbrshipCd)) {
+			if (-1L == mbrId) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "mbrId必须为非空合法参数");
+			}
+		}
+		// step1: 先判断是否为集团会员
+		pb.setCommand("isCrmMbr");
+		EngineBean eb = ServerCall.call(pb);
+		if (SysBook.SUCCESS.equals(eb.getResultCode())) {
+			log.info("queryCrmEnabledPoint...begin()...");
+			pb.setCommand("queryCrmEnabledPoint");
+			eb = ServerCall.call(pb);
+			log.info("queryCrmEnabledPoint...result()...");
+			return eb;
+		} else {
+			log.info("queryLocalEnabledPoint...begin()...");
+			pb.setCommand("queryLocalEnabledPoint");
+			eb = ServerCall.call(pb);
+			log.info("queryLocalEnabledPoint...result()...");
+			return eb;
+		}
+	}
+
+	/**
+	 * 查询积分交易明细
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryPointTransaction(EngineBean pb) throws ExceptionAbstract {
+		log.debug("PointService queryPointTransaction begin()...");
+		log.debug(pb.getHeadMap());
+		Long mbrId = CommonUtils.objectToLong((String) pb.getHead("mbrId"), -1L);
+		Long pageNo = CommonUtils.objectToLong((String) pb.getHead("pageNo"), -1L);
+		Long pageSize = CommonUtils.objectToLong((String) pb.getHead("pageSize"), -1L);
+		String beginDate = (String) pb.getHead("beginDate");
+		String endDate = (String) pb.getHead("endDate");
+		if (-1L == mbrId) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "mbrId不能为空或非法数字");
+		}
+		if (-1L == pageNo) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "pageNo不能为空或非法数字");
+		}
+		if (-1L == pageSize) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "pageSize不能为空或非法数字");
+		}
+		if (pageNo <= 0) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "pageNo必须是正整数");
+		}
+		if (pageSize <= 0) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "pageSize必须是正整数");
+		}
+
+		int type = -1;
+		try {
+			if (CommonUtils.isNotBlank(beginDate)) {
+				type = 1;
+				CommonUtils.parseDate(beginDate, "yyyy-MM-dd");
+			}
+			if (CommonUtils.isNotBlank(endDate)) {
+				type = 2;
+				CommonUtils.parseDate(endDate, "yyyy-MM-dd");
+			}
+			if (CommonUtils.isNotBlank(beginDate) && CommonUtils.isNotBlank(endDate)) {
+				if (CommonUtils.parseDate(beginDate, "yyyy-MM-dd").after(CommonUtils.parseDate(endDate, "yyyy-MM-dd"))) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "beginDate不能比endDate大");
+				}
+			}
+		} catch (ParseException e) {
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, (type > 0 ? (type == 1 ? "beginDate"
+					: "endDate") : "") + "必须为yyyy-MM-dd格式");
+		}
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+
+	/**
+	 * 添加奖励积分
+	 * 
+	 * @desc 此次针对跟团游订单系统没有对接会员自动积分奖励功能 后续也可扩展其他业务线积分奖励
+	 * @param pb
+	 * @return { "adjustCode": "cba8b9e6d9671cc8dfd9617b86e7bcd0", "appId":
+	 *         "wx17688f0881ac9513", "headMap": { "mbrId": "59106423",
+	 *         "mbrshipCd": "660009912659", "mbrshipId":"9912659",
+	 *         "order_num":"201505156000246M", "order_src":"cc",
+	 *         "sales_trans_code":"8866050000", "sales_trans_amount":"1000",
+	 *         "sales_trans_date_time":"2015-10-12", "award_points":"5" } }
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean addAwardPoints(EngineBean pb) throws ExceptionAbstract {
+		log.info("PointService addAwardPoints begin()...");
+		log.info("积分奖励开始: 业务编码" + pb.getHead("sales_trans_code") + " ,订单来源: " + pb.getHead("order_src") + " ,订单号: "
+				+ pb.getHead("order_num") + " ,订单金额: " + pb.getHead("sales_trans_amount"));
+		EngineBean resultEngineBean = ServerCall.call(pb);
+		log.info("resultEngineBean: " + resultEngineBean);
+		return resultEngineBean;
+	}
+}

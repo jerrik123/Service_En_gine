@@ -1,0 +1,105 @@
+/**
+ * 
+ */
+package com.mangocity.mbr.controller.passenger;
+
+import java.util.List;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+
+import com.mangocity.ce.bean.EngineBean;
+import com.mangocity.ce.book.SysBook;
+import com.mangocity.ce.exception.ExceptionAbstract;
+import com.mangocity.ce.util.AssertUtils;
+import com.mangocity.ce.util.CommonUtils;
+import com.mangocity.ce.util.MD5Algorithm;
+import com.mangocity.ce.util.RedisUtils;
+import com.mangocity.mbr.book.ErrorCode;
+import com.mangocity.mbr.factory.ApplicationContext;
+import com.mangocity.mbr.factory.BeanFactory;
+import com.mangocity.mbr.util.ErrorUtils;
+import com.mangocity.mbr.util.SafeUtil;
+import com.mangocity.mbr.util.ServerCall;
+
+/**
+ * @Package com.mangocity.mbr.controller.passenger
+ * @Description : 旅客信息服务
+ * @author YangJie
+ * @email <a href='yangjie_software@163.com'>yangjie</a>
+ * @date 2015-11-18
+ */
+public class PassengerService {
+	private static final Logger log = Logger.getLogger(PassengerService.class);
+
+	/** 工厂实例 */
+	private BeanFactory beanFactory = new ApplicationContext();
+
+	public void setBeanFactory(BeanFactory beanFactory) {
+		this.beanFactory = beanFactory;
+	}
+
+	/**
+	 * 增加旅客信息
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean addPassengerInfo(EngineBean pb) throws ExceptionAbstract {
+		log.info("MbrService addPassengerInfo begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+
+		return null;
+	}
+
+	/**
+	 * 删除旅客信息
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean deletePassengerInfo(EngineBean pb)
+			throws ExceptionAbstract {
+		log.info("MbrService deletePassengerInfo begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+
+		return null;
+	}
+
+	/**
+	 * 修改旅客信息
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean updatePassengerInfo(EngineBean pb)
+			throws ExceptionAbstract {
+		log.info("MbrService updatePassengerInfo begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+
+		return null;
+	}
+
+	/**
+	 * 根据会员ID查询旅客信息
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryPassengerInfo(EngineBean pb)
+			throws ExceptionAbstract {
+		log.info("MbrService queryPassengerInfoById begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+		EngineBean resultBean = ServerCall.call(pb);
+		log.info(resultBean.getBodyMap());
+		return resultBean;
+	}
+
+}

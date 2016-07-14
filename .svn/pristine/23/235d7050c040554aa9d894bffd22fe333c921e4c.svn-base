@@ -1,0 +1,25 @@
+#根据应用部署的环境,自动适应配置(如果当前服务器ip存在于proip中,则说明是生产环境,匹配生产的配置.反之,就是匹配测试环境的配置)
+proip=10.10.12.164;10.10.12.184
+testip=10.10.7.58;10.10.7.59;10.10.152.106;10.10.152.105
+
+#remoteip=10.10.12.164
+remoteip=127.0.0.1
+
+#remoteport=2220
+remoteport=1120
+
+#短信网关地址
+sms.url=http://ro.mangocity.com/MSG/remoting/communicaterService
+
+#是否对接口请求进行校验(appId、adjustCode) on:校验 off:不校验
+request.validate.switch=on
+
+
+#集团通讯的MQEngine(DE中配置即可)
+#mq.engine.http.url.prefix=http://10.10.39.58:8011/mq
+#查询集团积分
+#queryCrmEnablePoint.url.suffix=/point/queryCrmEnablePoint.action
+#扣减集团积分
+#cutCrmPoint.url.suffix=/point/cutCrmPoint.action
+#退还集团积分
+#increaseCrmPoint.url.suffix=/point/increaseCrmPoint.action

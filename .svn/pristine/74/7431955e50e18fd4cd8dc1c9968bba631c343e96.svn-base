@@ -1,0 +1,102 @@
+<mangocity>
+	<action mangoId="getUserInfo"
+		mangoClass="com.mangocity.mbr.controller.user.UserInfoService"></action>
+	<!-- 会员服务 -->
+	<action
+		mangoId="mbrRegister,validateUniqueMbrByLoginName,login,resetPassword,queryMbrIdByLoginName,queryMbrIdByLoginNameAndPassword,queryRegisterByLoginNameAndPassword,updateMobileNo,smsLogin,getPersonInfo"
+		mangoClass="com.mangocity.mbr.controller.mbr.MbrService"></action>
+	<action mangoId="queryMbrPersonByMbrId"
+		mangoClass="com.mangocity.mbr.controller.mbr.MbrPersonService"></action>
+	<!-- 积分服务 -->
+	<action
+		mangoId="cutPoint,queryEnabledPoint,queryPointTransaction,addAwardPoints,increasePoint"
+		mangoClass="com.mangocity.mbr.controller.point.PointService"></action>
+	<!-- 积分通用服务 -->
+	<action
+		mangoId="queryLocalEnabledPoint,queryCrmEnabledPoint,cutLocalPoint,cutCrmPoint,increaseCrmPoint,increaseLocalPoint"
+		mangoClass="com.mangocity.mbr.controller.point.PointCommService"></action>
+	<!-- 会籍服务 -->
+	<action mangoId="queryMbrShipListByMbrid,queryMbrShipByMbrshipCd,queryMbrshipBymbrshipCategoryIdAndAliasNo,queryMbrShipByShipCd"
+		mangoClass="com.mangocity.mbr.controller.mbrship.MbrShipService"></action>
+	<!-- 会籍服务 -->
+	<action mangoId="mbrshipCategoryByCategoryCd"
+		mangoClass="com.mangocity.mbr.controller.mbrship.MbrShipCategoryService"></action>
+	<!-- 第三方服务 -->
+	<action mangoId="thirdpartyBinding"
+		mangoClass="com.mangocity.mbr.controller.thirdparty.ThirdpartyService"></action>
+	<action mangoId="isBindedMango"
+		mangoClass="com.mangocity.mbr.controller.thirdparty.ThirdpartyService"></action>
+
+	<!-- 现金账户 -->
+	<action
+		mangoId="queryCashAccountBalance,queryCashAccountInCome,queryCashAccountOutCome,queryCashAccountApplyRecord,queryAllCashAccountTrans"
+		mangoClass="com.mangocity.mbr.controller.cashaccount.CashAccountService"></action>
+
+	<!-- 代金券 -->
+	<action mangoId="queryNotUsedVoucher"
+		mangoClass="com.mangocity.mbr.controller.voucher.VoucherService"></action>
+	<action mangoId="queryUsedVoucher,queryVoucherBalanceByCd"
+		mangoClass="com.mangocity.mbr.controller.voucher.VoucherService"></action>
+
+	<!-- 通讯服务(短信、邮件) -->
+	<action
+		mangoId="sendSms,validateSms,updateSmsByMobileNoAndCode,addSmsRecord,querySmsCount,addSmsCount"
+		mangoClass="com.mangocity.mbr.controller.sms.SmsService"></action>
+
+	<!-- 通用会员服务 -->
+	<action mangoId="queryMobileNoByMbrId,queryMobileNoByLoginName,updateMbrInfo,queryMbrByMbrId,updateMbrAttribute,isCrmMbr"
+		mangoClass="com.mangocity.mbr.controller.mbr.MbrCommService"></action>
+
+	<!-- mbrmg管理员服务 -->
+	<action mangoId="adminLogin,queryModuleByUserId"
+		mangoClass="com.mangocity.mbr.controller.mg.MbrManageService"></action>
+	<!-- 其他扩展服务(用户设备认证) -->
+	<action mangoId="addUserDevice,updateUserDevice,queryUserDeviceByUserId"
+		mangoClass="com.mangocity.mbr.controller.expand.UserDeviceService"></action>
+
+	<!-- 旅客信息 -->
+	<action
+		mangoId="addPassengerInfo,deletePassengerInfo,updatePassengerInfo,queryPassengerInfo,getPassCountByMbrId,queryPassengerDetailById"
+		mangoClass="com.mangocity.mbr.controller.passenger.PassengerService"></action>
+
+	<!-- 会员常用地址服务 -->
+	<action
+		mangoId="queryAddressWithPage,queryAddressCount,createAddress,updateAddress,deleteAddressById,setDefaulAddressById,cancleDefaulAddressById,getAddressByAddressId"
+		mangoClass="com.mangocity.mbr.controller.address.DeliverAddressService"></action>
+
+	<!-- 积分规则 -->
+	<action mangoId="queryAllPointSchemes,saveOrUpdateScheme"
+		mangoClass="com.mangocity.mbr.controller.point.PointSchemeService"></action>
+	<!--积分互换-万里通积分转换为芒果网积分服务 -->
+	<action
+	mangoId="partnersUserValidate,partnersCreateOrder,partnersIntegralSelUseablePointQuery,partnersIntegralBindUserQuery,partnersOrderQuery,convertPointByRefund"
+		mangoClass="com.mangocity.mbr.controller.point.exchange.PointExchangeInService">
+	</action>
+	<!--积分互换-万里通积分授权 -->
+	<action mangoId="selectPointAuthorizeBymbrId,insertPointAuthorize,queryPointAuthorizeByAuthorizeId"
+			mangoClass="com.mangocity.mbr.controller.point.PointAuthService"></action>
+	<!--积分互换绑定服务-->
+	<action mangoId="queryWltAccoutByBindUserName,queryWltAccoutByMbrId,pointConvertBindCreate,isExistWltOrder,queryPointConvertOrderByWltOrder"
+		mangoClass="com.mangocity.mbr.controller.point.exchange.PointConvertBindService">
+	</action>		
+	<!--积分互换- 积分明细 -->
+	<action mangoId="insertPointWalletLog,insertPointWalletLogPointAndFee,selectPointWalletLogByOrdercodeAndType,getSumPointByOrderCode"
+			mangoClass="com.mangocity.mbr.controller.point.PointWalletLogService"></action>		
+
+	<!-- CRM -->
+
+
+	<!-- 组织机构-->
+	<action mangoId="insertStructure,deleteStructureById,deleteStructure,updateStructure,selectStructureById,selectStructure"  
+		mangoClass="com.mangocity.mbr.controller.crm.OrganizationStructureService"></action>
+	
+	<!-- 用户-->
+	<action mangoId="insertUser,deleteUserById,deleteUser,updateUser,selectUserById,selectUser"  
+		mangoClass="com.mangocity.mbr.controller.crm.UserService"></action>
+	
+	<!-- 菜单-->
+	<action mangoId="insertAuthority,deleteAuthorityById,deleteAuthority,updateAuthority,selectAuthorityById,selectAuthority,selectAuthorityByIds"  
+		mangoClass="com.mangocity.mbr.controller.crm.AuthorityService"></action>
+
+	
+</mangocity>

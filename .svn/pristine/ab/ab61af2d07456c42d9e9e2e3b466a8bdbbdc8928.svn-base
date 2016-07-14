@@ -1,0 +1,71 @@
+package com.mangocity.mbr.controller.point;
+
+import org.apache.log4j.Logger;
+
+import com.mangocity.ce.bean.EngineBean;
+import com.mangocity.ce.exception.ExceptionAbstract;
+import com.mangocity.ce.util.AssertUtils;
+import com.mangocity.ce.util.CommonUtils;
+import com.mangocity.mbr.util.ServerCall;
+
+/**
+ * 积分明细
+ * @author longshu.chen
+ *
+ */
+public class PointWalletLogService {
+	private static final Logger log = Logger.getLogger(PointWalletLogService.class);
+	
+	/**
+	 * 插入积分明细
+	 * @param map
+	 * @return
+	 */
+	public EngineBean insertPointWalletLog(EngineBean pb)throws ExceptionAbstract{
+		log.info("PointWalletLogFactory insertPointWalletLog begin()...");
+		AssertUtils.assertNull(pb, "EngineBean can't be null.");
+		Long mbrId = CommonUtils.objectToLong((String) pb.getHead("mbrId"), -1L);
+		int points = (int) pb.getHead("points");
+		String transNo = (String) pb.getHead("transNo");
+		String orderCode = (String) pb.getHead("orderCode");
+		String productName = (String) pb.getHead("productName");
+		String pointType = (String) pb.getHead("pointType");
+		String pointValue = (String) pb.getHead("pointValue");
+		String transTime = (String) pb.getHead("transTime");
+		String transType = (String) pb.getHead("transType");
+		String transStatus = (String) pb.getHead("transStatus");
+		String adjustTime = (String) pb.getHead("adjustTime");
+		String remark = (String) pb.getHead("remark");
+		
+		EngineBean resutl = ServerCall.call(pb);
+		return resutl;
+	};
+	
+	/**
+	 * 插入积分明细事务，两条记录，积分记录和手续费
+	 * @param map
+	 * @return
+	 */
+	public EngineBean insertPointWalletLogPointAndFee(EngineBean pb)throws ExceptionAbstract{
+		log.info("PointWalletLogFactory insertPointWalletLogPointAndFee begin()...");
+		AssertUtils.assertNull(pb, "EngineBean can't be null.");
+		EngineBean resutl = ServerCall.call(pb);
+		return resutl;
+	};
+	
+	/**
+	 * 根据订单号和交易类型查询（支付P，退还R）
+	 * @param map
+	 * @return
+	 */
+	public EngineBean selectPointWalletLogByOrdercodeAndType(EngineBean pb)throws ExceptionAbstract{
+		log.info("PointWalletLogFactory selectPointWalletLogByOrdercodeAndType begin()...");
+		AssertUtils.assertNull(pb, "EngineBean can't be null.");
+		Long mbrId = CommonUtils.objectToLong((String) pb.getHead("mbrId"), -1L);
+		String orderCode = (String) pb.getHead("orderCode");
+		String transType = (String) pb.getHead("transType");
+		
+		EngineBean resutl=ServerCall.call(pb);
+		return resutl;
+	};
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app version="2.4" xmlns="http://java.sun.com/xml/ns/j2ee"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee 
+	http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd">
+	<!-- <filter> <filter-name>serverfilter</filter-name> <filter-class>com.mangocity.se.web.ServerFilter</filter-class> 
+		</filter> -->
+	<!-- <filter-mapping> <filter-name>serverfilter</filter-name> <url-pattern>/login1/*</url-pattern> 
+		<url-pattern>/webmg</url-pattern> </filter-mapping> -->
+	<!-- <servlet> <servlet-name>xx</servlet-name> <servlet-class>com.mangocity.servlet.Xxs</servlet-class> 
+		<load-on-startup>15</load-on-startup> </servlet> -->
+	<!-- <servlet-mapping> <servlet-name>xx</servlet-name> <url-pattern>/login1/*</url-pattern> 
+		</servlet-mapping> -->
+	<!-- <servlet> <servlet-name>webmg</servlet-name> <servlet-class>com.mangocity.servlet.MangoWebServlet</servlet-class> 
+		<load-on-startup>15</load-on-startup> </servlet> -->
+	<!-- <servlet-mapping> <servlet-name>webmg</servlet-name> <url-pattern>/webmg</url-pattern> 
+		</servlet-mapping> -->
+<servlet>
+		<servlet-name>business</servlet-name>
+		<servlet-class>com.mangocity.mbr.init.MangoServlet</servlet-class>
+		<load-on-startup>15</load-on-startup>
+	</servlet>
+	<!-- 过滤所有*.cgi请求 -->
+	<filter>
+		<filter-name>coreFilter</filter-name>
+		<filter-class>com.mangocity.mbr.init.UrlInterceptionFilter</filter-class>
+	</filter>
+	<filter-mapping>
+		<filter-name>coreFilter</filter-name>
+		<url-pattern>*.cgi</url-pattern>
+	</filter-mapping>
+	<!-- <servlet> <servlet-name>cgi</servlet-name> <servlet-class>com.mangocity.mbr.init.ControllerDistribution</servlet-class> 
+		<load-on-startup>15</load-on-startup> </servlet> <servlet-mapping> <servlet-name>cgi</servlet-name> 
+		<url-pattern>/cgi</url-pattern> </servlet-mapping> -->
+
+<error-page>
+    <error-code>404</error-code>
+    <location>/NotFound.html</location>
+  </error-page><error-page>
+    <error-code>500</error-code>
+    <location>/NotFound.html</location>
+  </error-page>
+	<welcome-file-list>
+		<welcome-file>index.jsp</welcome-file>
+		<welcome-file>index.html</welcome-file>
+		<welcome-file>member.html</welcome-file>
+	</welcome-file-list>
+
+</web-app>

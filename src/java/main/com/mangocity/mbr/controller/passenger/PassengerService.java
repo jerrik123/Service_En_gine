@@ -1,0 +1,199 @@
+/**
+ * 
+ */
+package com.mangocity.mbr.controller.passenger;
+
+import java.util.List;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+
+import com.mangocity.ce.bean.EngineBean;
+import com.mangocity.ce.exception.ExceptionAbstract;
+import com.mangocity.ce.util.AssertUtils;
+import com.mangocity.ce.util.CommonUtils;
+import com.mangocity.mbr.book.ErrorCode;
+import com.mangocity.mbr.factory.ApplicationContext;
+import com.mangocity.mbr.factory.BeanFactory;
+import com.mangocity.mbr.util.ErrorUtils;
+import com.mangocity.mbr.util.ServerCall;
+
+/**
+ * @Package com.mangocity.mbr.controller.passenger
+ * @Description : 旅客信息服务
+ * @author YangJie
+ * @email <a href='yangjie_software@163.com'>yangjie</a>
+ * @date 2015-11-18
+ */
+public class PassengerService {
+	private static final Logger log = Logger.getLogger(PassengerService.class);
+
+	/** 工厂实例 */
+	private BeanFactory beanFactory = new ApplicationContext();
+
+	public void setBeanFactory(BeanFactory beanFactory) {
+		this.beanFactory = beanFactory;
+	}
+
+	/**
+	 * 增加旅客信息
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean addPassengerInfo(EngineBean pb) throws ExceptionAbstract {
+		log.info("PassengerService addPassengerInfo begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+		List<Map<String,Object>> list = null;
+		if(pb.getHead("passList") instanceof List){
+		   list = (List<Map<String, Object>>) pb.getHead("passList");
+		}else{
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "passList必须是List");
+		}
+		
+		List<Map<String,String>> resultList = null;
+		for (Map<String, Object> map : list) {
+			if(CommonUtils.isBlank(CommonUtils.nullToEmpty(map.get("MBR_ID")))){
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "MBR_ID不能为空");
+			}
+			if(CommonUtils.isBlank(CommonUtils.nullToEmpty(map.get("MOBILE_NO")))){
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "MOBILE_NO不能为空");
+			}
+			if(CommonUtils.isBlank(CommonUtils.nullToEmpty(map.get("CHI_NAME")))){
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "CHI_NAME不能为空");
+			}
+			if(CommonUtils.isBlank(CommonUtils.nullToEmpty(map.get("GENDER")))){
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "GENDER不能为空");
+			}
+			if(CommonUtils.isBlank(CommonUtils.nullToEmpty(map.get("BIRTHDAY")))){
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "BIRTHDAY不能为空");
+			}
+			try {
+				resultList = (List<Map<String,String>>)map.get("certificateList");
+			} catch (Exception e) {
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "certificateList必须是List");
+			}
+			if(null != resultList){
+				for(Map<String,String> subMap : resultList){
+					if(CommonUtils.isBlank(CommonUtils.nullToEmpty(subMap.get("CER_TYPE")))){
+						return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "CER_TYPE不能为空");
+					}
+					if(CommonUtils.isBlank(CommonUtils.nullToEmpty(subMap.get("CER_NO")))){
+						return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "CER_NO不能为空");
+					}
+				}
+			}
+		}
+		EngineBean resultBean = ServerCall.call(pb);
+		log.info(resultBean.getBodyMap());
+		return resultBean;
+	}
+	
+	public EngineBean getPassCountByMbrId(EngineBean pb) throws ExceptionAbstract {
+		log.info("PassengerService getPassCountByMbrId begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+		EngineBean resultBean = ServerCall.call(pb);
+		log.info(resultBean.getBodyMap());
+		return resultBean;
+	}
+	/**
+	 * 删除旅客信息
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean deletePassengerInfo(EngineBean pb)
+			throws ExceptionAbstract {
+		log.info("PassengerService deletePassengerInfo begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+		EngineBean resultBean = ServerCall.call(pb);
+		log.info(resultBean.getBodyMap());
+		return resultBean;
+	}
+
+	/**
+	 * 修改旅客信息
+	 * 
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean updatePassengerInfo(EngineBean pb)
+			throws ExceptionAbstract {
+		log.info("PassengerService updatePassengerInfo begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+		List<Map<String,Object>> list = null;
+		if(pb.getHead("passList") instanceof List){
+		   list = (List<Map<String, Object>>) pb.getHead("passList");
+		}else{
+			return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "passList必须是List");
+		}
+		for (Map<String, Object> map : list) {
+			if(CommonUtils.isBlank(CommonUtils.nullToEmpty(map.get("MBR_ID")))){
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "MBR_ID不能为空");
+			}
+			if(CommonUtils.isBlank(CommonUtils.nullToEmpty(map.get("PASS_ID")))){
+				return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "PASS_ID不能为空");
+			}
+			
+			if(null != map.get("certificateList")){
+				List<Map<String, String>> resultList = null;
+				try {
+					resultList = (List<Map<String,String>>)map.get("certificateList");
+				} catch (Exception e) {
+					return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "certificateList必须是List");
+				}
+				for(Map<String,String> subMap : resultList){
+					if(CommonUtils.isBlank(CommonUtils.nullToEmpty(subMap.get("CER_TYPE")))){
+						return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "CER_TYPE不能为空");
+					}
+					if(CommonUtils.isBlank(CommonUtils.nullToEmpty(subMap.get("CER_NO")))){
+						return ErrorUtils.error(pb, ErrorCode.ERROR_REQUEST_PARAM_INVALID, "CER_NO不能为空");
+					}
+				}
+			}
+		}
+		EngineBean resultBean = ServerCall.call(pb);
+		log.info(resultBean.getBodyMap());
+		return resultBean;
+	}
+
+	/**
+	 * 根据会员ID查询旅客信息
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryPassengerInfo(EngineBean pb)
+			throws ExceptionAbstract {
+		log.info("PassengerService queryPassengerInfoById begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+		EngineBean resultBean = ServerCall.call(pb);
+		log.info(resultBean.getBodyMap());
+		return resultBean;
+	}
+	
+	/**
+	 * 根据会员ID和旅客id查询旅客详情
+	 * {"MBR_ID":"","PASS_ID":""}
+	 * @param pb
+	 * @return
+	 * @throws ExceptionAbstract
+	 */
+	public EngineBean queryPassengerDetailById(EngineBean pb)
+			throws ExceptionAbstract {
+		log.info("PassengerService queryPassengerDetailById begin()...headMap: "
+				+ pb.getHeadMap());
+		AssertUtils.assertNull(pb);
+		EngineBean resultBean = ServerCall.call(pb);
+		log.info(resultBean.getBodyMap());
+		return resultBean;
+	}
+}
